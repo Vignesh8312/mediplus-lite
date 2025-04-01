@@ -1,30 +1,39 @@
 pipeline {
-    agent any 
+    agent any
+
+    environment {
+        DOCKER_USER = 'vignesh997' // MUST match your Docker Hub username
+        IMAGE_NAME = "${DOCKER_USER}/mediplus-lite"
+    }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                git 'https://github.com/Vignesh8312/mediplus-lite.git'
-            }
-        }
-
-        stage('Build Docker Image') {
+        stage('Build & Push') {
             steps {
                 script {
-                    dockerImage = docker.build("vignesh8312/mediplus-lite:latest")
+                    // First verify local Docker access
+                    sh 'docker ps >/dev/null'
+                    
+                    withDockerRegistry(
+                        credentialsId: 'docker-creds', 
+                        url: 'https://index.docker.io/v1/'
+                    ) {
+                        sh """
+                        docker build -t ${IMAGE_NAME}:latest .
+                        docker push ${IMAGE_NAME}:latest
+                        """
+                    }
                 }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy') {
             steps {
-                script {
-                    sh '''
-                    docker stop mediplus-container || true
-                    docker rm mediplus-container || true
-                    docker run -d --name mediplus-container -p 80:80 vignesh8312/mediplus-lite:latest
-                    '''
-                }
+                sh """
+                docker run -d \
+                    --name mediplus-container \
+                    -p 80:80 \
+                    ${IMAGE_NAME}:latest
+                """
             }
         }
     }
